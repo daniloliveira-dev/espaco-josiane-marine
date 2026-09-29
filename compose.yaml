@@ -1,0 +1,11 @@
+services:
+  api:
+    build: ./backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    ports:
+      - "3000:3000"
+    volumes:
+      - salon-data:/app/data
+volumes:
+  salon-data:

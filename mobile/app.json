@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Espaço Josiane Marine",
+    "slug": "espaco-josiane-marine",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/brand.png",
+    "scheme": "josianemarine",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/brand.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0c0b0d"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.josianemarine.salao"
+    },
+    "android": {
+      "package": "com.josianemarine.salao",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/brand.png",
+        "backgroundColor": "#0c0b0d"
+      }
+    },
+    "web": {
+      "favicon": "./assets/brand.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-notifications",
+      "expo-font",
+      "expo-sharing"
+    ]
+  }
+}

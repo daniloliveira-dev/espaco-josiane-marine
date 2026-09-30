@@ -3,18 +3,18 @@ import { router } from "expo-router";
 import { useAuth } from "../core";
 import { Screen, Card, Title, Field, Button, Notice } from "../components/ui";
 export default function Recovery() {
-  const { request } = useAuth();
+  const { api } = useAuth();
   const [email, setEmail] = useState(""),
     [token, setToken] = useState(""),
     [password, setPassword] = useState(""),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
-  async function act(path: string, body: unknown) {
+  async function act(operation: () => Promise<any>) {
     setBusy(true);
     setError("");
     try {
-      const r = await request(path, "POST", body);
+      const r = await operation();
       setMessage(r.message);
     } catch (e) {
       setError((e as Error).message);
@@ -36,7 +36,7 @@ export default function Recovery() {
         <Button
           title="Enviar código por e-mail"
           disabled={busy}
-          onPress={() => act("/auth/forgot", { email })}
+          onPress={() => act(() => api.auth.forgotPassword(email))}
         />
       </Card>
       <Card>
@@ -55,7 +55,7 @@ export default function Recovery() {
         <Button
           title="Salvar nova senha"
           disabled={busy}
-          onPress={() => act("/auth/reset", { token, password })}
+          onPress={() => act(() => api.auth.resetPassword(token, password))}
         />
         <Button
           secondary

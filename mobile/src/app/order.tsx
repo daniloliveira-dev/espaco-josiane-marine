@@ -15,11 +15,11 @@ import {
 } from "../components/ui";
 export default function Order() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { request, session } = useAuth();
+  const { api, session } = useAuth();
   const [data, setData] = useState<any>(null),
     [products, setProducts] = useState<any[]>([]),
     [services, setServices] = useState<any[]>([]),
-    [kind, setKind] = useState("produto"),
+    [kind, setKind] = useState<"produto" | "servico">("produto"),
     [item, setItem] = useState(0),
     [quantity, setQuantity] = useState("1"),
     [discount, setDiscount] = useState("0"),
@@ -34,9 +34,9 @@ export default function Order() {
   const load = useCallback(async () => {
     if (session?.user.role !== "admin") return;
     const [a, b, c] = await Promise.all([
-      request(`/appointments/${id}/order`),
-      request("/products"),
-      request("/services"),
+      api.appointments.order(Number(id)),
+      api.products.list(),
+      api.services.list(),
     ]);
     setData(a);
     setProducts(b);
@@ -44,7 +44,7 @@ export default function Order() {
     setDiscount(((a.adjustment?.discount || 0) / 100).toFixed(2));
     setExtra(((a.adjustment?.extra || 0) / 100).toFixed(2));
     setReason(a.adjustment?.reason || "");
-  }, [request, session?.user.role, id]);
+  }, [api, session?.user.role, id]);
   useFocusEffect(
     useCallback(() => {
       void load().catch((e) => setError(e.message));
@@ -94,10 +94,7 @@ export default function Order() {
                     title="Remover produto"
                     onPress={() =>
                       action(() =>
-                        request(
-                          `/appointments/${id}/order/items/${x.id}`,
-                          "DELETE",
-                        ),
+                        api.appointments.removeOrderItem(Number(id), x.id),
                       )
                     }
                   />
@@ -142,7 +139,7 @@ export default function Order() {
                   title="Adicionar item"
                   onPress={() =>
                     action(() =>
-                      request(`/appointments/${id}/order/items`, "POST", {
+                      api.appointments.addOrderItem(Number(id), {
                         kind,
                         item_id: item,
                         quantity: Number(quantity),
@@ -178,7 +175,7 @@ export default function Order() {
                   title="Aplicar ajuste"
                   onPress={() =>
                     action(() =>
-                      request(`/appointments/${id}/order/adjustment`, "PUT", {
+                      api.appointments.updateOrderAdjustment(Number(id), {
                         discount: cents(discount),
                         extra: cents(extra),
                         reason,
@@ -227,7 +224,7 @@ export default function Order() {
                 disabled={!payment || busy}
                 onPress={() =>
                   action(() =>
-                    request("/refunds", "POST", {
+                    api.refunds.create({
                       payment_id: payment,
                       amount: cents(refund),
                       reason: refundReason,

@@ -12,7 +12,7 @@ import {
   s,
 } from "../components/ui";
 export default function Login() {
-  const { session, setSession, request } = useAuth();
+  const { session, setSession, api } = useAuth();
   const [register, setRegister] = useState(false),
     [name, setName] = useState(""),
     [email, setEmail] = useState(""),
@@ -28,11 +28,10 @@ export default function Login() {
     setBusy(true);
     setError("");
     try {
-      const data = await request(
-        "/auth/" + (register ? "register" : "login"),
-        "POST",
-        { name, email: email.trim(), phone, password },
-      );
+      const credentials = { email: email.trim(), password };
+      const data = register
+        ? await api.auth.register({ ...credentials, name, phone })
+        : await api.auth.login(credentials);
       await setSession(data);
       router.replace(data.user.role === "admin" ? "/home" : "/booking");
     } catch (e) {

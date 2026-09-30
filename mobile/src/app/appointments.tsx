@@ -2,6 +2,7 @@ import React, { useState, useCallback } from "react";
 import { Text, View, Alert, Platform } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useAuth, brl, displayDate, today, cents } from "../core";
+import type { PaymentMethod } from "../services/api";
 import {
   Screen,
   Card,
@@ -21,7 +22,7 @@ const labels: Record<string, string> = {
   nao_compareceu: "Não compareceu",
 };
 export default function Appointments() {
-  const { request, session } = useAuth();
+  const { api, session } = useAuth();
   const admin = session?.user.role === "admin";
   const [rows, setRows] = useState<any[]>([]),
     [date, setDate] = useState(admin ? today() : ""),
@@ -30,7 +31,7 @@ export default function Appointments() {
     [busy, setBusy] = useState(false),
     [selected, setSelected] = useState(0),
     [amount, setAmount] = useState(""),
-    [method, setMethod] = useState("pix"),
+    [method, setMethod] = useState<PaymentMethod>("pix"),
     [newDate, setNewDate] = useState(""),
     [newSlot, setNewSlot] = useState(""),
     [slots, setSlots] = useState<any[]>([]);
@@ -38,24 +39,24 @@ export default function Appointments() {
     if (!session) return;
     setBusy(true);
     try {
-      setRows(await request("/appointments" + (date ? "?date=" + date : "")));
+      setRows(await api.appointments.list(date || undefined));
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
-  }, [date, session, request]);
+  }, [date, session, api]);
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load]),
   );
-  async function act(path: string, body: unknown = {}) {
+  async function act(operation: () => Promise<unknown>) {
     setBusy(true);
     setError("");
     setMessage("");
     try {
-      await request(path, "PATCH", body);
+      await operation();
       setMessage("Agendamento atualizado.");
       setSelected(0);
       await load();
@@ -68,7 +69,7 @@ export default function Appointments() {
   function cancel(id: number) {
     if (Platform.OS === "web") {
       if (window.confirm("Cancelar este agendamento?"))
-        act(`/appointments/${id}/cancel`);
+        act(() => api.appointments.cancel(id));
     } else
       Alert.alert(
         "Cancelar agendamento",
@@ -78,7 +79,7 @@ export default function Appointments() {
           {
             text: "Cancelar horário",
             style: "destructive",
-            onPress: () => act(`/appointments/${id}/cancel`),
+            onPress: () => act(() => api.appointments.cancel(id)),
           },
         ],
       );
@@ -87,7 +88,7 @@ export default function Appointments() {
     setBusy(true);
     setError("");
     try {
-      await request("/payments", "POST", {
+      await api.payments.create({
         appointment_id: a.id,
         amount: cents(amount),
         method,
@@ -107,9 +108,11 @@ export default function Appointments() {
     setBusy(true);
     try {
       setSlots(
-        await request(
-          `/availability?service_id=${a.service_id}&professional_id=${a.professional_id}&date=${newDate}`,
-        ),
+        await api.availability({
+          service_id: a.service_id,
+          professional_id: a.professional_id,
+          date: newDate,
+        }),
       );
       setNewSlot("");
     } catch (e) {
@@ -202,18 +205,14 @@ export default function Appointments() {
               <Button
                 title="Iniciar atendimento"
                 onPress={() =>
-                  act(`/appointments/${a.id}/status`, {
-                    status: "em_atendimento",
-                  })
+                  act(() => api.appointments.updateStatus(a.id, "em_atendimento"))
                 }
               />
               <Button
                 secondary
                 title="Marcar ausência"
                 onPress={() =>
-                  act(`/appointments/${a.id}/status`, {
-                    status: "nao_compareceu",
-                  })
+                  act(() => api.appointments.updateStatus(a.id, "nao_compareceu"))
                 }
               />
             </>
@@ -222,7 +221,7 @@ export default function Appointments() {
             <Button
               title="Concluir atendimento"
               onPress={() =>
-                act(`/appointments/${a.id}/status`, { status: "concluido" })
+                act(() => api.appointments.updateStatus(a.id, "concluido"))
               }
             />
           )}{" "}
@@ -284,9 +283,7 @@ export default function Appointments() {
                     title="Confirmar novo horário"
                     disabled={!newSlot || busy}
                     onPress={() =>
-                      act(`/appointments/${a.id}/reschedule`, {
-                        start: newSlot,
-                      })
+                      act(() => api.appointments.reschedule(a.id, newSlot))
                     }
                   />
                 </>

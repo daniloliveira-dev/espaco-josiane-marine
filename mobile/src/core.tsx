@@ -4,9 +4,12 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
 } from "react";
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import { createApiClient, type ApiClient } from "./services/api";
+
 export const API = (
   process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000"
 ).replace(/\/$/, "");
@@ -22,7 +25,7 @@ type Auth = {
   session: Session | null;
   ready: boolean;
   setSession: (s: Session | null) => Promise<void>;
-  request: (path: string, method?: string, body?: unknown) => Promise<any>;
+  api: ApiClient;
 };
 const Context = createContext<Auth>(null!);
 export const useAuth = () => useContext(Context);
@@ -77,8 +80,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     [token, setSession],
   );
+  const authenticatedFetch = useCallback(
+    (path: string) =>
+      fetch(API + path, {
+        headers: token ? { Authorization: "Bearer " + token } : {},
+      }),
+    [token],
+  );
+  const api = useMemo(
+    () => createApiClient(request, authenticatedFetch),
+    [request, authenticatedFetch],
+  );
+  const sessionToken = session?.token;
+  useEffect(() => {
+    if (!ready || !sessionToken) return;
+    let active = true;
+    api.users
+      .me()
+      .then((user) => {
+        if (active) void setSession({ token: sessionToken, user });
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [ready, sessionToken, api, setSession]);
   return (
-    <Context.Provider value={{ session, ready, setSession, request }}>
+    <Context.Provider value={{ session, ready, setSession, api }}>
       {children}
     </Context.Provider>
   );

@@ -12,7 +12,7 @@ import {
   Notice,
 } from "../components/ui";
 export default function Profile() {
-  const { session, setSession, request } = useAuth();
+  const { session, setSession, api } = useAuth();
   const [name, setName] = useState(session?.user.name || ""),
     [phone, setPhone] = useState(session?.user.phone || ""),
     [message, setMessage] = useState(""),
@@ -20,15 +20,15 @@ export default function Profile() {
     [notifications, setNotifications] = useState<any[]>([]),
     [busy, setBusy] = useState(false);
   useEffect(() => {
-    request("/notifications")
+    api.users.notifications()
       .then(setNotifications)
       .catch((e) => setError(e.message));
-  }, [request]);
+  }, [api]);
   async function save() {
     setBusy(true);
     setError("");
     try {
-      const user = await request("/me", "PUT", { name, phone });
+      const user = await api.users.updateProfile({ name, phone });
       if (session) await setSession({ ...session, user });
       setMessage("Perfil atualizado.");
     } catch (e) {
@@ -58,7 +58,7 @@ export default function Profile() {
           title="Sair da conta"
           onPress={async () => {
             try {
-              await request("/push/device", "DELETE");
+              await api.push.unregister();
             } catch {}
             await setSession(null);
             router.replace("/");
@@ -73,7 +73,7 @@ export default function Profile() {
           onPress={async () => {
             try {
               const token = await registerPush();
-              await request("/push/device", "POST", { token, enabled: true });
+              await api.push.register(token, true);
               setMessage("Notificações ativadas.");
             } catch (e) {
               setError((e as Error).message);
@@ -85,7 +85,7 @@ export default function Profile() {
           title="Desativar notificações"
           onPress={async () => {
             try {
-              await request("/push/device", "DELETE");
+              await api.push.unregister();
               setMessage("Notificações push desativadas.");
             } catch (e) {
               setError((e as Error).message);

@@ -13,7 +13,7 @@ import {
   s,
 } from "../components/ui";
 export default function Booking() {
-  const { request, session } = useAuth();
+  const { api, session } = useAuth();
   const [services, setServices] = useState<any[]>([]),
     [pros, setPros] = useState<any[]>([]),
     [clients, setClients] = useState<any[]>([]),
@@ -29,10 +29,10 @@ export default function Booking() {
     [busy, setBusy] = useState(false);
   useEffect(() => {
     Promise.all([
-      request("/services"),
-      request("/professionals"),
+      api.services.list(),
+      api.professionals.list(),
       session?.user.role === "admin"
-        ? request("/clients")
+        ? api.users.clients()
         : Promise.resolve([]),
     ])
       .then(([a, b, c]) => {
@@ -41,15 +41,13 @@ export default function Booking() {
         setClients(c);
       })
       .catch((e) => setError(e.message));
-  }, [request, session?.user.role]);
+  }, [api, session?.user.role]);
   async function load() {
     setBusy(true);
     setError("");
     setMessage("");
     try {
-      const a = await request(
-        `/availability?service_id=${service}&professional_id=${pro}&date=${date}`,
-      );
+      const a = await api.availability({ service_id: service, professional_id: pro, date });
       setSlots(a);
       if (!a.length)
         setMessage(
@@ -65,7 +63,7 @@ export default function Booking() {
     setBusy(true);
     setError("");
     try {
-      await request("/appointments", "POST", {
+      await api.appointments.create({
         service_id: service,
         professional_id: pro,
         start: slot,
@@ -158,7 +156,7 @@ export default function Booking() {
           onPress={async () => {
             setBusy(true);
             try {
-              await request("/waitlist", "POST", {
+              await api.waitlist.join({
                 service_id: service,
                 professional_id: pro,
                 date,

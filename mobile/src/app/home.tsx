@@ -12,7 +12,7 @@ import {
   s,
 } from "../components/ui";
 export default function Home() {
-  const { session, request } = useAuth();
+  const { session, api } = useAuth();
   const [data, setData] = useState<any>(null),
     [cash, setCash] = useState<any>(null),
     [error, setError] = useState("");
@@ -20,15 +20,15 @@ export default function Home() {
     useCallback(() => {
       if (session?.user.role !== "admin") return;
       Promise.all([
-        request(`/reports?from=${today()}&to=${today()}`),
-        request("/cash"),
+        api.reports.get(today(), today()),
+        api.cash.list(),
       ])
         .then(([r, c]) => {
           setData(r);
           setCash(c.find((x: any) => x.date === today()));
         })
         .catch((e) => setError(e.message));
-    }, [session, request]),
+    }, [session, api]),
   );
   return (
     <Screen

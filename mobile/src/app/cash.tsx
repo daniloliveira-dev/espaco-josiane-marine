@@ -2,6 +2,7 @@ import React, { useState, useCallback } from "react";
 import { Text } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { useAuth, brl, cents, today } from "../core";
+import type { PaymentMethod } from "../services/api";
 import {
   Screen,
   Card,
@@ -14,34 +15,34 @@ import {
   s,
 } from "../components/ui";
 export default function Cash() {
-  const { request, session } = useAuth();
+  const { api, session } = useAuth();
   const [rows, setRows] = useState<any[]>([]),
     [expenses, setExpenses] = useState<any[]>([]),
     [initial, setInitial] = useState("0"),
     [counted, setCounted] = useState(""),
     [description, setDescription] = useState(""),
     [amount, setAmount] = useState(""),
-    [method, setMethod] = useState("pix"),
+    [method, setMethod] = useState<PaymentMethod>("pix"),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     if (session?.user.role !== "admin") return;
-    const [a, b] = await Promise.all([request("/cash"), request("/expenses")]);
+    const [a, b] = await Promise.all([api.cash.list(), api.expenses.list()]);
     setRows(a);
     setExpenses(b);
-  }, [request, session?.user.role]);
+  }, [api, session?.user.role]);
   useFocusEffect(
     useCallback(() => {
       load().catch((e) => setError(e.message));
     }, [load]),
   );
-  async function action(path: string, body: unknown) {
+  async function action(operation: () => Promise<unknown>) {
     setBusy(true);
     setError("");
     setMessage("");
     try {
-      await request(path, "POST", body);
+      await operation();
       setMessage("Operação registrada.");
       setDescription("");
       setAmount("");
@@ -82,7 +83,7 @@ export default function Cash() {
             title="Abrir caixa"
             disabled={busy}
             onPress={() =>
-              safe(() => action("/cash/open", { initial: cents(initial) }))
+              safe(() => action(() => api.cash.open(cents(initial))))
             }
           />
         </Card>
@@ -108,7 +109,7 @@ export default function Cash() {
           {x.status === "aberto" && (
             <Button
               title="Fechar caixa para conferência"
-              onPress={() => action("/cash/" + x.date + "/close", {})}
+              onPress={() => action(() => api.cash.close(x.date))}
             />
           )}{" "}
           {x.status === "aguardando_conferencia" && (
@@ -123,9 +124,7 @@ export default function Cash() {
                 title="Confirmar contagem"
                 onPress={() =>
                   safe(() =>
-                    action("/cash/" + x.date + "/reconcile", {
-                      counted: cents(counted),
-                    }),
+                    action(() => api.cash.reconcile(x.date, cents(counted))),
                   )
                 }
               />
@@ -159,12 +158,12 @@ export default function Cash() {
           disabled={busy}
           onPress={() =>
             safe(() =>
-              action("/expenses", {
+              action(() => api.expenses.create({
                 description,
                 amount: cents(amount),
                 method,
                 date: today(),
-              }),
+              })),
             )
           }
         />

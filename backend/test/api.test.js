@@ -4,6 +4,7 @@ import { openDb } from "../src/db.js";
 import { createApp } from "../src/app.js";
 import { hash } from "../src/auth.js";
 import { localDate, closeDue } from "../src/domain.js";
+import { QueryRepository } from "../src/app/Repositories/QueryRepository.js";
 let db, server, base, admin, client, other, appointment;
 const day = () => {
   const d = new Date();
@@ -22,13 +23,16 @@ async function request(path, method = "GET", body, token = client) {
   return { status: r.status, body: await r.json() };
 }
 before(async () => {
-  db = openDb(":memory:");
-  db.prepare(
-    "INSERT INTO users(name,email,password,role) VALUES('ADM','admin@example.test',?,'admin')",
-  ).run(hash("abcdefghijk"));
-  db.prepare(
-    "UPDATE settings SET days='[0,1,2,3,4,5,6]',close_time='23:59'",
-  ).run();
+  process.env.DB_NAME = process.env.DB_TEST_NAME || "salon_test";
+  db = await openDb();
+  db.queries = new QueryRepository(db);
+  await db.queries.resetIntegrationFixtures();
+  await db.queries.insertAdmin({
+    name: "ADM",
+    email: "admin@example.test",
+    password: hash("abcdefghijk"),
+  });
+  await db.queries.configureIntegrationSettings();
   server = createApp(
     db,
     "test-secret-with-more-than-thirty-two-characters",
@@ -77,9 +81,9 @@ before(async () => {
     admin,
   );
 });
-after(() => {
-  server.close();
-  db.close();
+after(async () => {
+  if (server) await new Promise((resolve) => server.close(resolve));
+  if (db) await db.close();
 });
 test("cadastro público não promove ADM e cliente não acessa financeiro", async () => {
   assert.equal((await request("/me")).body.role, "cliente");
@@ -189,7 +193,7 @@ test("sinal, idempotência e dinheiro físico separado de Pix", async () => {
     201,
   );
   await request("/payments", "POST", payment, admin);
-  assert.equal(db.prepare("SELECT COUNT(*) n FROM payments").get().n, 1);
+  assert.equal((await db.queries.countPayments()).n, 1);
   assert.equal(
     (await request("/payments", "POST", { ...payment, amount: 4000 }, admin))
       .status,
@@ -266,15 +270,11 @@ test("sinal, idempotência e dinheiro físico separado de Pix", async () => {
   assert.equal(r.outstanding, 5000);
   assert.equal(r.result, 4500);
 });
-test("fechamento automático recupera caixa antigo e não duplica", () => {
-  db.prepare(
-    "INSERT INTO cash_days(date,initial) VALUES('2020-01-01',500)",
-  ).run();
-  closeDue(db);
-  closeDue(db);
-  const row = db
-    .prepare("SELECT * FROM cash_days WHERE date='2020-01-01'")
-    .get();
+test("fechamento automático recupera caixa antigo e não duplica", async () => {
+  await db.queries.createCashDay("2020-01-01", 500);
+  await closeDue(db);
+  await closeDue(db);
+  const row = await db.queries.findCashDay("2020-01-01");
   assert.equal(row.expected, 500);
   assert.equal(row.status, "aguardando_conferencia");
 });
@@ -379,7 +379,7 @@ test("comanda, desconto, estoque, comissão e estorno sem duplicação", async (
   };
   await request("/refunds", "POST", body, admin);
   await request("/refunds", "POST", body, admin);
-  assert.equal(db.prepare("SELECT COUNT(*) n FROM refunds").get().n, 1);
+  assert.equal((await db.queries.countRefunds()).n, 1);
   assert.equal(
     (await request("/appointments")).body.find((a) => a.id === next).paid,
     9800,
@@ -403,10 +403,8 @@ test("comanda, desconto, estoque, comissão e estorno sem duplicação", async (
 test("redefinição de senha invalida sessões e código é de uso único", async () => {
   const { createHash } = await import("node:crypto");
   const token = "a".repeat(64);
-  const user = db
-    .prepare("SELECT id FROM users WHERE email='o@example.test'")
-    .get();
-  db.prepare("INSERT INTO password_resets VALUES(?,?,?)").run(
+  const user = await db.queries.findUserByEmail("o@example.test");
+  await db.queries.createPasswordReset(
     createHash("sha256").update(token).digest("hex"),
     user.id,
     new Date(Date.now() + 60000).toISOString(),
@@ -438,16 +436,16 @@ test("redefinição de senha invalida sessões e código é de uso único", asyn
 
 test("relatório mensal e lembretes são gerados uma vez", async () => {
   const { scheduledJobs } = await import("../src/jobs.js");
-  scheduledJobs(db);
-  const count = db.prepare("SELECT COUNT(*) n FROM monthly_reports").get().n;
-  const notices = db.prepare("SELECT COUNT(*) n FROM notifications").get().n;
-  scheduledJobs(db);
+  await scheduledJobs(db);
+  const count = (await db.queries.countMonthlyReports()).n;
+  const notices = (await db.queries.countNotifications()).n;
+  await scheduledJobs(db);
   assert.equal(
-    db.prepare("SELECT COUNT(*) n FROM monthly_reports").get().n,
+    (await db.queries.countMonthlyReports()).n,
     count,
   );
   assert.equal(
-    db.prepare("SELECT COUNT(*) n FROM notifications").get().n,
+    (await db.queries.countNotifications()).n,
     notices,
   );
   assert.equal(

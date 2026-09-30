@@ -1,11 +1,43 @@
 services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local_root_password_change_me}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-salon}
+      MYSQL_USER: ${MYSQL_USER:-salon_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-local_salon_password_change_me}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -u root -p\"$${MYSQL_ROOT_PASSWORD}\" --silent",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
   api:
     build: ./backend
     restart: unless-stopped
     env_file: ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-salon}
+      DB_USER: ${MYSQL_USER:-salon_user}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-local_salon_password_change_me}
     ports:
       - "3000:3000"
     volumes:
       - salon-data:/app/data
 volumes:
+  mysql-data:
   salon-data:

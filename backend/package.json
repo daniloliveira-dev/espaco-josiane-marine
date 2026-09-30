@@ -11,6 +11,7 @@
     "start": "node --env-file-if-exists=.env src/server.js",
     "test": "node --test",
     "admin": "node --env-file-if-exists=.env src/admin.js",
+    "admin:create": "node --env-file-if-exists=.env src/admin.js",
     "demo": "node --env-file-if-exists=.env src/demo.js"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "express-rate-limit": "^8.0.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.24.5",
     "nodemailer": "^10.0.12",
     "pdfkit": "^0.17.2",
     "zod": "^4.0.0"

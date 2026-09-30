@@ -14,7 +14,7 @@ import {
   s,
 } from "../components/ui";
 export default function Operations() {
-  const { request, session } = useAuth();
+  const { api, session } = useAuth();
   const [tab, setTab] = useState("produtos"),
     [products, setProducts] = useState<any[]>([]),
     [services, setServices] = useState<any[]>([]),
@@ -34,18 +34,18 @@ export default function Operations() {
   const load = useCallback(async () => {
     if (session?.user.role !== "admin") return;
     const [a, b, c, d, e] = await Promise.all([
-      request("/products"),
-      request("/services"),
-      request("/commissions"),
-      request("/commission-rules"),
-      request("/waitlist"),
+      api.products.list(),
+      api.services.list(),
+      api.commissions.list(),
+      api.commissions.rules(),
+      api.waitlist.list(),
     ]);
     setProducts(a);
     setServices(b);
     setCommissions(c);
     setRules(d);
     setWaiting(e);
-  }, [request, session?.user.role]);
+  }, [api, session?.user.role]);
   useFocusEffect(
     useCallback(() => {
       void load().catch((e) => setError(e.message));
@@ -113,16 +113,19 @@ export default function Operations() {
               title="Salvar produto"
               onPress={() =>
                 action(() =>
-                  request(
-                    "/products" + (edit ? "/" + edit : ""),
-                    edit ? "PUT" : "POST",
-                    {
+                  edit
+                    ? api.products.update(edit, {
                       name,
                       price: cents(price),
                       stock: Number(stock),
                       minimum: Number(minimum),
-                    },
-                  ),
+                    })
+                    : api.products.create({
+                        name,
+                        price: cents(price),
+                        stock: Number(stock),
+                        minimum: Number(minimum),
+                      }),
                 )
               }
             />
@@ -175,9 +178,7 @@ export default function Operations() {
               disabled={!service}
               onPress={() =>
                 action(() =>
-                  request("/commission-rules/" + service, "PUT", {
-                    percent: Number(percent),
-                  }),
+                  api.commissions.updateRule(service, Number(percent)),
                 )
               }
             />
@@ -199,9 +200,7 @@ export default function Operations() {
                   title="Registrar comissão paga via Pix"
                   onPress={() =>
                     action(() =>
-                      request(`/commissions/${c.appointment_id}/pay`, "POST", {
-                        method: "pix",
-                      }),
+                      api.commissions.pay(c.appointment_id, "pix"),
                     )
                   }
                 />

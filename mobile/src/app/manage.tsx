@@ -14,7 +14,7 @@ import {
   s,
 } from "../components/ui";
 export default function Manage() {
-  const { request, session } = useAuth();
+  const { api, session } = useAuth();
   const [tab, setTab] = useState("servicos"),
     [services, setServices] = useState<any[]>([]),
     [pros, setPros] = useState<any[]>([]),
@@ -39,18 +39,18 @@ export default function Manage() {
   const load = useCallback(async () => {
     if (session?.user.role !== "admin") return;
     const [a, b, c, d, e] = await Promise.all([
-      request("/services"),
-      request("/professionals"),
-      request("/clients"),
-      request("/settings"),
-      request("/blocks"),
+      api.services.list(),
+      api.professionals.list(),
+      api.users.clients(),
+      api.settings.get(),
+      api.blocks.list(),
     ]);
     setServices(a);
     setPros(b);
     setClients(c);
     setCfg(d);
     setBlocks(e);
-  }, [request, session?.user.role]);
+  }, [api, session?.user.role]);
   useFocusEffect(
     useCallback(() => {
       void load().catch((e) => setError(e.message));
@@ -84,23 +84,26 @@ export default function Manage() {
   async function save() {
     return action(() =>
       tab === "servicos"
-        ? request(
-            "/services" + (edit ? "/" + edit : ""),
-            edit ? "PUT" : "POST",
-            {
+        ? edit
+          ? api.services.update(edit, {
               name,
               description,
               price: cents(price),
               duration: Number(duration),
               buffer: Number(buffer),
               active,
-            },
-          )
-        : request(
-            "/professionals" + (edit ? "/" + edit : ""),
-            edit ? "PUT" : "POST",
-            { name, service_ids: ids, active },
-          ),
+            })
+          : api.services.create({
+              name,
+              description,
+              price: cents(price),
+              duration: Number(duration),
+              buffer: Number(buffer),
+              active,
+            })
+        : edit
+          ? api.professionals.update(edit, { name, service_ids: ids, active })
+          : api.professionals.create({ name, service_ids: ids, active }),
     );
   }
   return (
@@ -128,6 +131,11 @@ export default function Manage() {
         secondary
         title="Produtos, comissões e lista de espera"
         onPress={() => router.push("/operations")}
+      />
+      <Button
+        secondary
+        title="Ver auditoria de atividades"
+        onPress={() => router.push("/audit")}
       />
       <Notice error message={error} />
       <Notice message={message} />
@@ -303,7 +311,7 @@ export default function Manage() {
               title="Salvar horários"
               onPress={() =>
                 action(() =>
-                  request("/settings", "PUT", {
+                  api.settings.update({
                     ...cfg,
                     open_hour: Number(cfg.open_hour),
                     close_hour: Number(cfg.close_hour),
@@ -338,7 +346,7 @@ export default function Manage() {
               title="Bloquear período"
               onPress={() =>
                 action(() =>
-                  request("/blocks", "POST", {
+                  api.blocks.create({
                     professional_id: blockPro || null,
                     start,
                     end,
@@ -358,7 +366,7 @@ export default function Manage() {
                 secondary
                 title="Remover bloqueio"
                 onPress={() =>
-                  action(() => request("/blocks/" + x.id, "DELETE"))
+                  action(() => api.blocks.delete(x.id))
                 }
               />
             </Card>

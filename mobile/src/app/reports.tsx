@@ -3,7 +3,7 @@ import React, { useState, useCallback } from "react";
 import { Platform, Text, View } from "react-native";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import { API, useAuth, brl, today } from "../core";
+import { useAuth, brl, today } from "../core";
 import {
   Screen,
   Card,
@@ -16,7 +16,7 @@ import {
   Chips,
 } from "../components/ui";
 export default function Reports() {
-  const { request, session } = useAuth();
+  const { api, session } = useAuth();
   const [from, setFrom] = useState(today().slice(0, 7) + "-01"),
     [to, setTo] = useState(today()),
     [data, setData] = useState<any>(null),
@@ -29,14 +29,14 @@ export default function Reports() {
     setBusy(true);
     setError("");
     try {
-      setData(await request(`/reports?from=${from}&to=${to}`));
-      setMonths(await request("/monthly-reports"));
+      setData(await api.reports.get(from, to));
+      setMonths(await api.reports.monthly());
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
-  }, [request, session?.user.role, from, to]);
+  }, [api, session?.user.role, from, to]);
   useFocusEffect(
     useCallback(() => {
       void load().catch((e) => setError(e.message));
@@ -46,12 +46,13 @@ export default function Reports() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(
-        `${API}/reports?from=${data?.from || from}&to=${data?.to || to}&format=${format}`,
-        { headers: { Authorization: "Bearer " + session?.token } },
+      const bytes = new Uint8Array(
+        await api.reports.export(
+          data?.from || from,
+          data?.to || to,
+          format as "csv" | "pdf",
+        ),
       );
-      if (!res.ok) throw Error("Não foi possível exportar");
-      const bytes = new Uint8Array(await res.arrayBuffer());
       const name = `relatorio-${data?.from || from}-${data?.to || to}.${format}`;
       if (Platform.OS === "web") {
         const blob = new Blob([bytes], {
@@ -113,7 +114,7 @@ export default function Reports() {
               onSelect={async (m) => {
                 try {
                   setSelectedMonth(m);
-                  const r = await request("/monthly-reports/" + m);
+                  const r = await api.reports.monthlyByMonth(m);
                   setData(r);
                 } catch (e) {
                   setError((e as Error).message);
